@@ -46,7 +46,8 @@ def _get_valid_proxy():
     valid_flag = False
     try_count = 0
     while (not valid_flag) and try_count < 5:
-        proxy = requests.get('http://127.0.0.1:5010/get/').json()['proxy']
+        proxy_list = requests.get('http://127.0.0.1:5010/get_all/').json()
+        proxy = random.choice(proxy_list)
         valid_flag = requests.get('http://127.0.0.1:5010/validate_proxy/?proxy={}'.format(proxy)).json()['result']
         if not valid_flag:
             _delete_proxy(proxy)
@@ -96,11 +97,13 @@ class GetZhihuUser():
         try:
             user_info_flag = self.get_user_info()
         except:
+            print('get user info has meet some error.')
             user_info_flag = 0
         if user_info_flag:
             try:
                 flag = self.get_follow_info()
             except:
+                print('get following info has occur some error.')
                 pass
         
     def get_user_info(self):

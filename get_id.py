@@ -45,7 +45,7 @@ def _get_valid_proxy():
 
     valid_flag = False
     try_count = 0
-    while (not valid_flag) and try_count < 3:
+    while (not valid_flag) and try_count < 5:
         proxy = requests.get('http://127.0.0.1:5010/get/').json()['proxy']
         valid_flag = requests.get('http://127.0.0.1:5010/validate_proxy/?proxy={}'.format(proxy)).json()['result']
         if not valid_flag:
@@ -55,11 +55,12 @@ def _get_valid_proxy():
 
     return proxy
 
-def _get_html(url, proxy):
+def _get_html(url,proxy):
 
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'}
 
     try:
+        #proxy = _get_valid_proxy()
         print(proxy,url)
         data = requests.get(url,proxies = {'https':'https://{}'.format(proxy)},headers = headers, timeout = 10).text
         return data

@@ -91,7 +91,7 @@ class GetZhihuUser():
         try:
             flag = self.get_follow_info()
         except:
-            pass
+            print('get follow info has meet some error.')
         
     def get_user_info(self):
 

@@ -45,8 +45,8 @@ def _get_valid_proxy():
 
     valid_flag = False
     try_count = 0
-    while (not valid_flag) and try_count < 5:
-        proxy = requests.get('http://127.0.0.1:5010/get/').json()['proxy']
+    while (not valid_flag) and try_count < 3:
+        proxy = random.choice(requests.get('http://127.0.0.1:5010/get_all/').json())
         valid_flag = requests.get('http://127.0.0.1:5010/validate_proxy/?proxy={}'.format(proxy)).json()['result']
         if not valid_flag:
             _delete_proxy(proxy)
@@ -62,7 +62,7 @@ def _get_html(url,proxy):
     try:
         #proxy = _get_valid_proxy()
         print(proxy,url)
-        data = requests.get(url,proxies = {'https':'https://{}'.format(proxy)},headers = headers, timeout = 10).text
+        data = requests.get(url,proxies = {'https':'https://{}'.format(proxy)},headers = headers, timeout = 5).text
         return data
     except:
         proxy = _get_valid_proxy()
@@ -75,15 +75,6 @@ def _get_html(url,proxy):
 
 class GetZhihuUser():
 
-    url_token = ''
-    agree_num = 0
-    thanks_num = 0
-    collect_num = 0
-    public_edit_num = 0
-
-    following_num = 0
-    follower_num = 0
-
     last_update = ''
     user_name = ''
     proxy = ''
@@ -94,14 +85,13 @@ class GetZhihuUser():
         self.proxy = _get_valid_proxy()
 
         try:
-            user_info_flag = self.get_user_info()
+            self.get_user_info()
         except:
-            user_info_flag = 0
-        if user_info_flag:
-            try:
-                flag = self.get_follow_info()
-            except:
-                pass
+            print('get user info occurs some error.')
+        try:
+            flag = self.get_follow_info()
+        except:
+            pass
         
     def get_user_info(self):
 
@@ -109,35 +99,29 @@ class GetZhihuUser():
         main_pg = _get_html(user_url, self.proxy)
         soup = BeautifulSoup(main_pg,'html5lib')
 
-        self.user_name = str(soup.findAll('span', class_ = 'ProfileHeader-name')[0].get_text())
-        
-        user_profile = str(soup.findAll('div',class_ = 'Profile-sideColumnItems')[0])
+        data = soup.find('div',attrs={'id':'data'})['data-state']
+        data = json.loads(data)
+        user_info = data['entities']['users'][self.url_token]
 
-        for item in user_profile.split('/'):
-            if '赞同' in item:
-                self.agree_num = _get_num_from_str(item)[0][0].replace(',','')
-            if '感谢' in item:
-                self.thanks_num = _get_num_from_str(item)[0][0].replace(',','')
-                self.collect_num = _get_num_from_str(item)[1][0].replace(',','')
-            if '公共编辑' in item:
-                self.public_edit_num = _get_num_from_str(item)[0][0].replace(',','')
-
-        follow = soup.findAll('strong',class_ = 'NumberBoard-itemValue')
-        if len(follow) == 0:
-            return 0
-
-        self.following_num = str(follow[0].get_text()).replace(',','')
-        self.follower_num = str(follow[1].get_text()).replace(',','')
-
-        activity_info = str(soup.findAll('div', class_ = 'ActivityItem-meta')[0].get_text())
-        self.last_update = activity_info
+        self.user_name = user_info['name']
+        self.agree_num = user_info['voteupCount']
+        self.thanks_num = user_info['thankedCount']
+        self.public_edit_num = user_info['logsCount']
+        self.following_num = user_info['followingCount']
+        self.follower_num = user_info['followerCount']
+        self.collect_num = user_info['favoritedCount']
         print('get user info. follower num:',self.follower_num, ' following num:',self.following_num)
+
+        try:
+            activity_info = str(soup.findAll('div', class_ = 'ActivityItem-meta')[0].get_text())
+            self.last_update = activity_info
+        except:
+            self.last_update = ''
     
         user_url = 'https://www.zhihu.com/people/{}/activities'.format(self.url_token)
     
         _write_list_to_file(['user_name','follower_num','last_update','agree_num','thanks_num','collect_num','public_edit_num','following_num','url'],'./data/basic_user/{}.csv'.format(self.url_token),mode = 'w')
         _write_list_to_file([self.user_name,self.follower_num,self.last_update,self.agree_num,self.thanks_num,self.collect_num,self.public_edit_num,self.following_num,user_url],'./data/basic_user/{}.csv'.format(self.url_token),mode = 'a')
-        return 1
 
     def get_follow_url_token(self,url,ii,op):
 
@@ -241,11 +225,11 @@ if __name__ =="__main__":
     #loop.close()
 
     #fn_list = open('./merged_id.csv').readlines()[0].split(',')
-    kk = sys.argv[1]
-    fn_list = open('./id/{}'.format(kk)).readline().split(',')
+    for kk in range(int(sys.argv[1]),int(sys.argv[2])):
+        print(kk)
+        fn_list = open('./id/{}'.format(kk)).readline().split(',')
 
-    for ii in range(len(fn_list)):
-        print('get {}:{}/{}th following info.'.format(kk,ii,len(fn_list)))
-    #for fn in fn_list:
-        get_follow_(fn_list[ii])
+        for ii in range(len(fn_list)):
+            print('get {}:{}/{}th following info.'.format(kk,ii,len(fn_list)))
+            get_follow_(fn_list[ii])
 

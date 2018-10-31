@@ -46,7 +46,11 @@ def _get_valid_proxy():
     valid_flag = False
     try_count = 0
     while (not valid_flag) and try_count < 3:
-        proxy = random.choice(requests.get('http://127.0.0.1:5010/get_all/').json())
+        proxy_list = requests.get('http://127.0.0.1:5010/get_all/').json()
+        if len(proxy_list) <10:
+            time.sleep(10*60)
+            proxy_list = requests.get('http://127.0.0.1:5010/get_all/').json()
+        proxy = random.choice(proxy_list)
         valid_flag = requests.get('http://127.0.0.1:5010/validate_proxy/?proxy={}'.format(proxy)).json()['result']
         if not valid_flag:
             _delete_proxy(proxy)

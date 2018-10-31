@@ -102,7 +102,7 @@ def referProxy():
 
 def run():
     config = GetConfig()
-    app.run(host=config.host_ip, port=config.host_port)
+    app.run(host=config.host_ip, port=config.host_port, processes = 5)
 
 
 if __name__ == '__main__':

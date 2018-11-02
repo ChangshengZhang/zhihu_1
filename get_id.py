@@ -10,6 +10,7 @@
 import os
 import requests
 import datetime
+import traceback
 from bs4 import BeautifulSoup
 import time
 import re
@@ -68,7 +69,9 @@ def _get_html(url,proxy):
         print(proxy,url)
         data = requests.get(url,proxies = {'https':'https://{}'.format(proxy)},headers = headers, timeout = 5).text
         return data
-    except:
+    except Exception as e:
+        print(e)
+        traceback.print_exc()
         proxy = _get_valid_proxy()
         data = requests.get(url,proxies = {'https':'https://{}'.format(proxy)},headers = headers, timeout = 10).text
         return data
@@ -87,14 +90,20 @@ class GetZhihuUser():
         
         self.url_token = url_token
         self.proxy = _get_valid_proxy()
+        self.data_type = 'followers'
 
         try:
             self.get_user_info()
-        except:
+        except Exception as e:
+            print(e)
+            traceback.print_exc()
             print('get user info occurs some error.')
+
         try:
-            flag = self.get_follow_info()
-        except:
+            flag = self.get_follow_info(self.follower_num)
+        except Exception as e:
+            print(e)
+            traceback.print_exc()
             print('get follow info has meet some error.')
         
     def get_user_info(self):
@@ -133,82 +142,51 @@ class GetZhihuUser():
         html = _get_html(url+str(ii), self.proxy)
 
         soup = BeautifulSoup(html,'html5lib')
-        follower_info = str(soup.findAll('div',style = 'display:none')[0])
 
         follower_url_token = []
-        follower_count = []
+        data = soup.find('div',attrs = {'id':'data'})['data-state']
+        data = json.loads(data)
 
-        op_lines = []
-
-        for tmp in follower_info.split(','):
-
-            if 'urlToken' in tmp and not ('loading' in tmp) and not(self.url_token in tmp):
-                tmp_token = tmp.split(':',1)[1].strip('"')
-                if 'quot' in tmp_token:
-                    follower_url_token.append(tmp_token.split(';')[1].split('&')[0])
-                else:
-                    follower_url_token.append(tmp_token)
-        
-            if 'followerCount' in tmp:
-                follower_count.append(_get_num_from_str(tmp)[0][0])
-
-        if self.follower_num == follower_count[-1]:
-            for jj in range(len(follower_url_token)):
-                op_lines.append(follower_url_token[jj]+','+follower_count[jj]+'\n')
+        if self.data_type == 'followers':
+            items = data['people']['followersByUser'][self.url_token]['ids']
         else:
-            for jj in range(len(follower_url_token)):
-                op_lines.append(follower_url_token[jj]+','+follower_count[jj+1]+'\n')
+            items = data['people']['followingByUser'][self.url_token]['ids']
+
+        for item in items:
+            if item!=None and item!=False and item!=True and item!='知乎用户':
+                follower_url_token.append(item+'\n')
 
         f = open(op+'/'+str(ii)+'.csv', 'w')
-        f.writelines(op_lines)
+        f.writelines(follower_url_token)
         f.close()
             
-    def get_follow_info(self):
+    def get_follow_info(self,follow_num):
 
-        print('get following info')
-        url_following = 'https://www.zhihu.com/people/{}/following?page='.format(self.url_token)
-        following_pg_max_num = int((int(self.following_num) - 1)/20 + 1)
-        following_op = './data/following/{}'.format(self.url_token)
+        print('get {} info'.format(self.data_type))
+        url_following = 'https://www.zhihu.com/people/{}/{}?page='.format(self.url_token,self.data_type)
+        following_pg_max_num = int((int(follow_num) - 1)/20 + 1)
+        following_op = './data/{}/{}'.format(self.data_type,self.url_token)
 
         if os.path.exists(following_op):
-            existed_file = os.listdir('./data/following/'+self.url_token)
+            existed_file = os.listdir('./data/'+self.data_type+'/'+self.url_token)
             if len(existed_file) == following_pg_max_num:
                 print('{} already exists.'.format(self.url_token))
                 return 0
         else:
             os.system('mkdir '+following_op)
 
-        #if following_pg_max_num < 5:
         for ii in range(1, following_pg_max_num+1):
             print('get {}/{}th following info.'.format(ii,following_pg_max_num))
             self.get_follow_url_token(url_following,ii,following_op)
 
         return 0
-        #else:
-        #    loop = asyncio.get_event_loop()
-        #    loop.run_until_complete(self.run_thread(url_following, following_op, following_pg_max_num))
-        #    loop.close()
-
-
-        #print('get follower info')
-        #url_follower = 'https://www.zhihu.com/people/{}/followers?page='.format(self.url_token)
-        #follower_pg_max_num = int((int(self.follower_num) -1)/20 + 1)
-        #follower_op = './data/follower/{}'.format(self.url_token)
-
-        #if follower_pg_max_num < 5:
-        #    for ii in range(1, follower_pg_max_num+1):
-        #        print('get {}/{}th follower info.'.format(ii,follower_pg_max_num))
-        #        self.get_follow_url_token(url_follower,ii,follower_op)
-        #else:
-        #    loop = asyncio.get_event_loop()
-        #    loop.run_until_complete(self.run_thread(url_follower, follower_op, follower_pg_max_num))
-        #    loop.close()
 
 async def run_thread():
 
-    fn_list = open('./merged_id.csv').readlines()[0].split(',')
+    fn_list = open('./merged_base_fans.csv').readlines()
+    fn_list = [fn.split(',')[0] for fn in fn_list[1:]]
 
-    with cf.ThreadPoolExecutor(max_workers = 3) as executor:
+    with cf.ThreadPoolExecutor(max_workers = 5) as executor:
         loop = asyncio.get_event_loop()
         futures = (loop.run_in_executor(executor, get_follow_, fn) for fn in fn_list)
         for result in await asyncio.gather(*futures):
@@ -219,21 +197,14 @@ def get_follow_(fn):
 
     try:
         a = GetZhihuUser(fn)
-    except:
+    except Exception as e:
+        print(e)
         print(fn+' has some error.')
 
 if __name__ =="__main__":
 
-    #loop = asyncio.get_event_loop()
-    #loop.run_until_complete(run_thread())
-    #loop.close()
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(run_thread())
+    loop.close()
 
-    #fn_list = open('./merged_id.csv').readlines()[0].split(',')
-    for kk in range(int(sys.argv[1]),int(sys.argv[2])):
-        print(kk)
-        fn_list = open('./id/{}'.format(kk)).readline().split(',')
-
-        for ii in range(len(fn_list)):
-            print('get {}:{}/{}th following info.'.format(kk,ii,len(fn_list)))
-            get_follow_(fn_list[ii])
 

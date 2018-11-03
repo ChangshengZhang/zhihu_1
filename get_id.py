@@ -46,7 +46,7 @@ def _get_valid_proxy():
 
     valid_flag = False
     try_count = 0
-    while (not valid_flag) and try_count < 3:
+    while (not valid_flag) and try_count < 5:
         proxy_list = requests.get('http://127.0.0.1:5010/get_all/').json()
         if len(proxy_list) <10:
             time.sleep(10*60)
@@ -68,13 +68,13 @@ def _get_html(url,proxy):
         #proxy = _get_valid_proxy()
         print(proxy,url)
         data = requests.get(url,proxies = {'https':'https://{}'.format(proxy)},headers = headers, timeout = 5).text
-        return data
+        return data,proxy
     except Exception as e:
         print(e)
         traceback.print_exc()
         proxy = _get_valid_proxy()
         data = requests.get(url,proxies = {'https':'https://{}'.format(proxy)},headers = headers, timeout = 10).text
-        return data
+        return data,proxy
 
 # get:
 #   关注了,关注者,赞同，感谢
@@ -109,7 +109,7 @@ class GetZhihuUser():
     def get_user_info(self):
 
         user_url = 'https://www.zhihu.com/people/{}/activities'.format(self.url_token)
-        main_pg = _get_html(user_url, self.proxy)
+        main_pg,self.proxy = _get_html(user_url, self.proxy)
         soup = BeautifulSoup(main_pg,'html5lib')
 
         data = soup.find('div',attrs={'id':'data'})['data-state']
@@ -139,7 +139,7 @@ class GetZhihuUser():
     def get_follow_url_token(self,url,ii,op):
 
         ii = int(ii)
-        html = _get_html(url+str(ii), self.proxy)
+        html,self.proxy = _get_html(url+str(ii), self.proxy)
 
         soup = BeautifulSoup(html,'html5lib')
 
@@ -177,8 +177,17 @@ class GetZhihuUser():
 
         for ii in range(1, following_pg_max_num+1):
             print('get {}/{}th following info.'.format(ii,following_pg_max_num))
-            self.get_follow_url_token(url_following,ii,following_op)
-
+            try:
+                self.get_follow_url_token(url_following,ii,following_op)
+            except Exception as e:
+                print(e)
+                traceback.print_exc()
+                try:
+                    self.get_follow_url_token(url_following,ii,following_op)
+                except Exception as e:
+                    print(e)
+                    traceback.print_exc()
+                    pass
         return 0
 
 async def run_thread():
@@ -195,11 +204,7 @@ async def run_thread():
 # get follow list
 def get_follow_(fn):
 
-    try:
-        a = GetZhihuUser(fn)
-    except Exception as e:
-        print(e)
-        print(fn+' has some error.')
+    a = GetZhihuUser(fn)
 
 if __name__ =="__main__":
 
